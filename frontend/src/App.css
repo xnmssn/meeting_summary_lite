@@ -258,6 +258,12 @@ time {
   align-items: start;
 }
 
+.side-stack {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
 .tool-card {
   min-width: 0;
   border: 1px solid rgb(154 169 190 / 32%);
@@ -267,6 +273,7 @@ time {
 }
 
 .form-panel,
+.upload-panel,
 .history-panel,
 .detail-panel {
   padding: 20px;
@@ -328,6 +335,86 @@ textarea {
   min-height: 270px;
   resize: vertical;
   line-height: 1.7;
+}
+
+.upload-zone {
+  display: grid;
+  place-items: center;
+  gap: 8px;
+  min-height: 210px;
+  margin-top: 18px;
+  border: 1px dashed #a8b8ca;
+  border-radius: 8px;
+  padding: 14px;
+  color: #52657d;
+  background: #f7fafc;
+  text-align: center;
+  transition:
+    border-color 0.18s ease,
+    background 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.upload-zone.active,
+.upload-zone:hover {
+  border-color: #147d72;
+  background: #effaf8;
+  box-shadow: 0 0 0 4px rgb(20 125 114 / 9%);
+}
+
+.upload-zone.ready {
+  align-content: start;
+}
+
+.upload-zone input {
+  display: none;
+}
+
+.upload-zone img {
+  width: 100%;
+  max-height: 220px;
+  border-radius: 8px;
+  object-fit: cover;
+}
+
+.upload-zone span {
+  color: #172033;
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.upload-zone small,
+.file-meta {
+  color: #65758b;
+  font-size: 13px;
+}
+
+.file-meta {
+  margin: 10px 0 0;
+  overflow-wrap: anywhere;
+}
+
+.upload-result {
+  display: grid;
+  gap: 6px;
+  margin-top: 14px;
+  border: 1px solid #bde7dd;
+  border-radius: 8px;
+  padding: 12px;
+  background: #ecfdf8;
+}
+
+.upload-result span {
+  color: #0f766e;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.upload-result a {
+  overflow-wrap: anywhere;
+  color: #172033;
+  font-size: 13px;
+  font-weight: 800;
 }
 
 .primary-button {
@@ -491,6 +578,7 @@ textarea {
   .site-nav,
   .hero,
   .layout,
+  .side-stack,
   .hero-card,
   .result-grid {
     grid-template-columns: 1fr;
@@ -575,7 +663,7 @@ textarea {
   }
 
   .nav-links {
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, 1fr);
     text-align: center;
   }
 
@@ -617,6 +705,7 @@ textarea {
   }
 
   .form-panel,
+  .upload-panel,
   .history-panel,
   .detail-panel {
     padding: 16px;
@@ -624,5 +713,9 @@ textarea {
 
   textarea {
     min-height: 220px;
+  }
+
+  .upload-zone {
+    min-height: 180px;
   }
 }

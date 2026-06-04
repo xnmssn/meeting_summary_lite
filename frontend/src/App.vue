@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 
 const API_BASE_URL = 'http://127.0.0.1:8000'
 
@@ -9,9 +9,16 @@ const title = ref('')
 const transcript = ref('')
 const loading = ref(false)
 const errorMessage = ref('')
+const imageFile = ref(null)
+const imagePreviewUrl = ref('')
+const uploadedImage = ref(null)
+const imageUploading = ref(false)
+const imageErrorMessage = ref('')
+const dragActive = ref(false)
 
 const hasMeetings = computed(() => meetings.value.length > 0)
 const transcriptLength = computed(() => transcript.value.trim().length)
+const hasUploadedImage = computed(() => Boolean(uploadedImage.value?.url))
 const selectedKeywords = computed(() => {
   if (!selectedMeeting.value?.keywords) {
     return []
@@ -37,6 +44,78 @@ async function request(path, options = {}) {
   }
 
   return response.json()
+}
+
+function clearImagePreview() {
+  if (imagePreviewUrl.value) {
+    URL.revokeObjectURL(imagePreviewUrl.value)
+    imagePreviewUrl.value = ''
+  }
+}
+
+function setImageFile(file) {
+  imageErrorMessage.value = ''
+  uploadedImage.value = null
+
+  if (!file) {
+    imageFile.value = null
+    clearImagePreview()
+    return
+  }
+
+  const validTypes = ['image/jpeg', 'image/png']
+  if (!validTypes.includes(file.type)) {
+    imageErrorMessage.value = '仅支持上传 jpg、jpeg 或 png 图片'
+    imageFile.value = null
+    clearImagePreview()
+    return
+  }
+
+  imageFile.value = file
+  clearImagePreview()
+  imagePreviewUrl.value = URL.createObjectURL(file)
+}
+
+function handleImageChange(event) {
+  setImageFile(event.target.files?.[0])
+  event.target.value = ''
+}
+
+function handleImageDrop(event) {
+  dragActive.value = false
+  setImageFile(event.dataTransfer.files?.[0])
+}
+
+async function uploadImage() {
+  imageErrorMessage.value = ''
+
+  if (!imageFile.value) {
+    imageErrorMessage.value = '请先选择一张图片'
+    return
+  }
+
+  imageUploading.value = true
+
+  try {
+    const formData = new FormData()
+    formData.append('image', imageFile.value)
+
+    const response = await fetch(`${API_BASE_URL}/images`, {
+      method: 'POST',
+      body: formData
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.detail || '图片上传失败，请稍后再试')
+    }
+
+    uploadedImage.value = await response.json()
+  } catch (error) {
+    imageErrorMessage.value = error.message
+  } finally {
+    imageUploading.value = false
+  }
 }
 
 async function loadMeetings() {
@@ -105,6 +184,10 @@ onMounted(async () => {
     errorMessage.value = '无法连接后端服务，请先启动 FastAPI'
   }
 })
+
+onUnmounted(() => {
+  clearImagePreview()
+})
 </script>
 
 <template>
@@ -120,6 +203,7 @@ onMounted(async () => {
 
       <div class="nav-links">
         <a href="#workspace">工作台</a>
+        <a href="#images">图片</a>
         <a href="#history">历史</a>
         <a href="#result">结果</a>
       </div>
@@ -132,9 +216,9 @@ onMounted(async () => {
     <section class="hero">
       <div class="hero-copy">
         <p class="eyebrow">AI Copilot</p>
-        <h1>会议纪要，一键生成</h1>
+        <h1>会议纪要与图片素材，一处整理</h1>
         <p class="hero-text">
-          粘贴转录文本，快速整理摘要、待办和关键词。
+          生成会议摘要，上传现场图片，保留可访问素材链接。
         </p>
 
         <div class="hero-actions">
@@ -153,8 +237,8 @@ onMounted(async () => {
           <small>当前字数</small>
         </div>
         <div class="metric">
-          <span>{{ selectedMeeting ? '已就绪' : '待生成' }}</span>
-          <small>纪要状态</small>
+          <span>{{ hasUploadedImage ? '已上传' : '待上传' }}</span>
+          <small>图片状态</small>
         </div>
       </div>
     </section>
@@ -201,30 +285,81 @@ onMounted(async () => {
         </button>
       </div>
 
-      <div id="history" class="tool-card history-panel">
-        <div class="panel-header">
-          <div>
-            <p class="eyebrow">History</p>
-            <h2>历史会议</h2>
+      <div class="side-stack">
+        <div id="images" class="tool-card upload-panel">
+          <div class="section-heading">
+            <p class="eyebrow">Images</p>
+            <h2>上传图片</h2>
           </div>
-          <button class="secondary-button" type="button" @click="loadMeetings">
-            刷新
+
+          <label
+            class="upload-zone"
+            :class="{ active: dragActive, ready: imagePreviewUrl }"
+            for="image"
+            @dragenter.prevent="dragActive = true"
+            @dragover.prevent="dragActive = true"
+            @dragleave.prevent="dragActive = false"
+            @drop.prevent="handleImageDrop"
+          >
+            <input
+              id="image"
+              type="file"
+              accept="image/jpeg,image/png"
+              @change="handleImageChange"
+            />
+            <img v-if="imagePreviewUrl" :src="imagePreviewUrl" alt="待上传图片预览" />
+            <span v-else>选择或拖入图片</span>
+            <small>支持 jpg、jpeg、png</small>
+          </label>
+
+          <p v-if="imageFile" class="file-meta">
+            {{ imageFile.name }}
+          </p>
+
+          <p v-if="imageErrorMessage" class="error">{{ imageErrorMessage }}</p>
+
+          <button
+            class="primary-button"
+            type="button"
+            :disabled="imageUploading"
+            @click="uploadImage"
+          >
+            {{ imageUploading ? '上传中...' : '上传图片' }}
           </button>
+
+          <div v-if="uploadedImage" class="upload-result">
+            <span>上传成功</span>
+            <a :href="uploadedImage.url" target="_blank" rel="noreferrer">
+              {{ uploadedImage.filename }}
+            </a>
+          </div>
         </div>
 
-        <div v-if="!hasMeetings" class="empty">暂无历史会议</div>
+        <div id="history" class="tool-card history-panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">History</p>
+              <h2>历史会议</h2>
+            </div>
+            <button class="secondary-button" type="button" @click="loadMeetings">
+              刷新
+            </button>
+          </div>
 
-        <button
-          v-for="meeting in meetings"
-          :key="meeting.id"
-          type="button"
-          class="meeting-item"
-          :class="{ active: selectedMeeting?.id === meeting.id }"
-          @click="selectMeeting(meeting.id)"
-        >
-          <span class="meeting-title">{{ meeting.title }}</span>
-          <span class="meeting-date">{{ formatDate(meeting.created_at) }}</span>
-        </button>
+          <div v-if="!hasMeetings" class="empty">暂无历史会议</div>
+
+          <button
+            v-for="meeting in meetings"
+            :key="meeting.id"
+            type="button"
+            class="meeting-item"
+            :class="{ active: selectedMeeting?.id === meeting.id }"
+            @click="selectMeeting(meeting.id)"
+          >
+            <span class="meeting-title">{{ meeting.title }}</span>
+            <span class="meeting-date">{{ formatDate(meeting.created_at) }}</span>
+          </button>
+        </div>
       </div>
 
       <div id="result" class="tool-card detail-panel">
