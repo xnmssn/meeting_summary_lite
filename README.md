@@ -87,6 +87,12 @@ http://127.0.0.1:8000/docs
 backend/meetings.db
 ```
 
+上传的图片会保存在：
+
+```text
+backend/uploads/images/
+```
+
 ## 启动前端
 
 打开一个新的终端，进入前端目录：
@@ -120,8 +126,29 @@ http://127.0.0.1:5173
 - 点击按钮调用 OpenAI-compatible API 生成会议摘要、待办事项、关键词
 - 查看历史会议列表
 - 查看会议详情
+- 上传 jpg、jpeg、png 图片并获取访问 URL
 
 ## API
+
+### 上传图片
+
+```http
+POST /images
+```
+
+请求体使用 `multipart/form-data`，字段名为 `image`，仅支持 `jpg`、`jpeg`、`png` 图片。
+
+返回示例：
+
+```json
+{
+  "url": "http://127.0.0.1:8000/uploads/images/6f8a7c8f4e8f4b1da4f7b4f6d9e5c2a1.png",
+  "filename": "6f8a7c8f4e8f4b1da4f7b4f6d9e5c2a1.png",
+  "content_type": "image/png"
+}
+```
+
+返回的 `url` 可直接访问图片。
 
 ### 创建会议
 

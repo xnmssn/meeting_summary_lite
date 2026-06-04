@@ -2,25 +2,36 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
+from uuid import uuid4
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Optional
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from openai import OpenAI, OpenAIError
 from sqlmodel import Field, Session, SQLModel, create_engine, select
 from dotenv import load_dotenv
 
 
 DATABASE_URL = "sqlite:///meetings.db"
-ENV_FILE = Path(__file__).parent / ".env"
+BASE_DIR = Path(__file__).parent
+ENV_FILE = BASE_DIR / ".env"
+UPLOAD_DIR = BASE_DIR / "uploads"
+IMAGE_UPLOAD_DIR = UPLOAD_DIR / "images"
+ALLOWED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png"}
+ALLOWED_IMAGE_CONTENT_TYPES = {"image/jpeg", "image/png"}
 
 load_dotenv(ENV_FILE)
+
+IMAGE_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 
 app = FastAPI(title="Meeting Summary Lite API")
+app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
 app.add_middleware(
     CORSMiddleware,
@@ -57,6 +68,12 @@ class MeetingRead(MeetingBase):
     action_items: str
     keywords: str
     created_at: datetime
+
+
+class ImageUploadRead(SQLModel):
+    url: str
+    filename: str
+    content_type: str
 
 
 def create_db_and_tables() -> None:
@@ -142,6 +159,37 @@ JSON 字段必须包含：
 @app.get("/")
 def read_root() -> dict[str, str]:
     return {"message": "Meeting Summary Lite API is running"}
+
+
+@app.post("/images", response_model=ImageUploadRead)
+def upload_image(request: Request, image: UploadFile = File(...)) -> ImageUploadRead:
+    original_filename = image.filename or ""
+    suffix = Path(original_filename).suffix.lower()
+
+    if suffix not in ALLOWED_IMAGE_EXTENSIONS:
+        raise HTTPException(status_code=400, detail="仅支持上传 jpg、jpeg 或 png 图片")
+
+    if image.content_type not in ALLOWED_IMAGE_CONTENT_TYPES:
+        raise HTTPException(status_code=400, detail="图片类型必须是 image/jpeg 或 image/png")
+
+    saved_filename = f"{uuid4().hex}{suffix}"
+    saved_path = IMAGE_UPLOAD_DIR / saved_filename
+
+    try:
+        with saved_path.open("wb") as file:
+            shutil.copyfileobj(image.file, file)
+    except OSError as error:
+        saved_path.unlink(missing_ok=True)
+        raise HTTPException(status_code=500, detail="保存图片失败") from error
+    finally:
+        image.file.close()
+
+    url = request.url_for("uploads", path=f"images/{saved_filename}")
+    return ImageUploadRead(
+        url=str(url),
+        filename=saved_filename,
+        content_type=image.content_type,
+    )
 
 
 @app.post("/meetings", response_model=MeetingRead)

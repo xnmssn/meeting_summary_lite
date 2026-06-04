@@ -51,6 +51,11 @@ Default local URLs:
 
 Backend endpoints currently used by the frontend:
 
+- `POST /images`
+  - Request body: `multipart/form-data` with image file field named `image`.
+  - Accepted files: `jpg`, `jpeg`, and `png` with MIME type `image/jpeg` or `image/png`.
+  - Response: `{ "url": string, "filename": string, "content_type": string }`.
+  - Uploaded files are served from `/uploads/images/{filename}` and stored under `backend/uploads/images/`.
 - `POST /meetings`
   - Request body: `{ "title": string, "transcript": string }`
   - Response: full meeting object with `id`, `title`, `transcript`, `summary`, `action_items`, `keywords`, and `created_at`.
@@ -76,6 +81,7 @@ Do not treat these as source changes unless the user explicitly asks:
 - `backend/.env`
 - `backend/.venv/`
 - `backend/meetings.db`
+- `backend/uploads/`
 - `backend/__pycache__/`
 - `frontend/node_modules/`
 - `frontend/dist/`
