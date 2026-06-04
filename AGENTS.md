@@ -72,6 +72,8 @@ Model output parsing in `backend/main.py` expects JSON fields:
 - `action_items`: Chinese action items separated by newlines.
 - `keywords`: 3 to 6 Chinese keywords separated by English commas.
 
+The parser intentionally tolerates common OpenAI-compatible model quirks: Markdown-wrapped JSON, explanatory text around JSON, array values for `action_items`/`keywords`, and a missing final `}` when the returned object is otherwise parseable.
+
 If any API shape, environment variable, port, or model-output contract changes, update this file and the README together.
 
 ## Local Files and Generated Artifacts

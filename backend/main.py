@@ -6,7 +6,7 @@ import shutil
 from uuid import uuid4
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -95,28 +95,58 @@ def get_openai_client() -> OpenAI:
     return OpenAI(api_key=api_key, base_url=base_url)
 
 
+def extract_json_object(content: str) -> dict[str, Any]:
+    decoder = json.JSONDecoder()
+    first_object_start = content.find("{")
+
+    for index, char in enumerate(content):
+        if char != "{":
+            continue
+
+        try:
+            data, _ = decoder.raw_decode(content[index:])
+        except json.JSONDecodeError:
+            continue
+
+        if isinstance(data, dict):
+            return data
+
+    if first_object_start != -1:
+        possible_json = content[first_object_start:].strip()
+        missing_closing_braces = possible_json.count("{") - possible_json.count("}")
+
+        if missing_closing_braces > 0:
+            repaired_json = possible_json + ("}" * missing_closing_braces)
+            try:
+                data = json.loads(repaired_json)
+            except json.JSONDecodeError:
+                pass
+            else:
+                if isinstance(data, dict):
+                    return data
+
+    raise HTTPException(status_code=502, detail="模型返回的内容不是有效 JSON")
+
+
+def normalize_model_field(value: Any, separator: str) -> str:
+    if isinstance(value, list):
+        return separator.join(str(item).strip() for item in value if str(item).strip())
+
+    return str(value).strip()
+
+
 def parse_json_response(content: str) -> dict[str, str]:
-    cleaned = content.strip()
-
-    if cleaned.startswith("```json"):
-        cleaned = cleaned.removeprefix("```json").removesuffix("```").strip()
-    elif cleaned.startswith("```"):
-        cleaned = cleaned.removeprefix("```").removesuffix("```").strip()
-
-    try:
-        data = json.loads(cleaned)
-    except json.JSONDecodeError as error:
-        raise HTTPException(status_code=502, detail="模型返回的内容不是有效 JSON") from error
+    data = extract_json_object(content)
 
     required_fields = ["summary", "action_items", "keywords"]
     for field in required_fields:
-        if field not in data or not str(data[field]).strip():
+        if field not in data or not normalize_model_field(data[field], "\n").strip():
             raise HTTPException(status_code=502, detail=f"模型返回缺少字段：{field}")
 
     return {
-        "summary": str(data["summary"]).strip(),
-        "action_items": str(data["action_items"]).strip(),
-        "keywords": str(data["keywords"]).strip(),
+        "summary": normalize_model_field(data["summary"], "\n"),
+        "action_items": normalize_model_field(data["action_items"], "\n"),
+        "keywords": normalize_model_field(data["keywords"], ", "),
     }
 
 
